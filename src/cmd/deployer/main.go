@@ -102,12 +102,6 @@ func main() {
 		os.Exit(-1)
 	}
 
-	ansible, err := exec.LookPath("ansible")
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		os.Exit(-1)
-	}
-
 	ansiblePlaybook, err := exec.LookPath("ansible-playbook")
 	if err != nil {
 		fmt.Printf("%s\n", err)
