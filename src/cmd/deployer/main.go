@@ -9,18 +9,21 @@ import (
 )
 
 var (
-	gitRepo        = flag.String("git-repo", "", "The git repository to clone")
-	gitBranch      = flag.String("git-branch", "dev", "The git branch to checkout")
-	account        = flag.String("account", "discoenv", "The Docker account to use")
-	repo           = flag.String("repo", "", "The Docker repo to pull")
-	vaultPass      = flag.String("vault-pass", "", "The path to the ansible vault password file")
-	secretFile     = flag.String("secret", "", "The file encrypted by ansible-vault")
-	inventory      = flag.String("inventory", "", "The ansible inventory to use")
-	tag            = flag.String("tag", "dev", "The docker tag to pull from")
-	user           = flag.String("user", "", "The sudo user to use with the ansible command")
-	service        = flag.String("service", "", "The service to restart on the host")
-	configTag      = flag.String("config-tag", "", "The ansible tag to pass to the ansible-playbook command when updating the configs")
-	configPlaybook = flag.String("config-playbook", "", "The playbook to deploy configs through")
+	gitRepo    = flag.String("git-repo", "", "The git repository to clone")
+	gitBranch  = flag.String("git-branch", "dev", "The git branch to checkout")
+	account    = flag.String("account", "discoenv", "The Docker account to use")
+	repo       = flag.String("repo", "", "The Docker repo to pull")
+	vaultPass  = flag.String("vault-pass", "", "The path to the ansible vault password file")
+	secretFile = flag.String("secret", "", "The file encrypted by ansible-vault")
+	inventory  = flag.String("inventory", "", "The ansible inventory to use")
+	tag        = flag.String("tag", "dev", "The docker tag to pull from")
+	user       = flag.String("user", "", "The sudo user to use with the ansible command")
+	service    = flag.String("service", "", "The service to restart on the host")
+	configTag  = flag.String("config-tag", "", "The ansible tag to pass to the ansible-playbook command when updating the configs")
+	pullTag    = flag.String("pull-tag", "", "The ansible tag to pass to the ansible-playbook command when updating the images")
+	serviceTag = flag.String("service-tag", "", "The ansible tag to pass to the ansible-playbook command when updating systemd service files")
+	restartTag = flag.String("restart-tag", "", "The ansible tag to pass to the ansible-playbook command when restarting the containers")
+	playbook   = flag.String("playbook", "", "The ansible playbook to use")
 )
 
 func init() {
@@ -73,8 +76,23 @@ func main() {
 		os.Exit(-1)
 	}
 
-	if *configPlaybook == "" {
-		fmt.Println("--config-playbook must be set")
+	if *pullTag == "" {
+		fmt.Println("--pull-tag must be set")
+		os.Exit(-1)
+	}
+
+	if *restartTag == "" {
+		fmt.Println("--restart-tag must be set")
+		os.Exit(-1)
+	}
+
+	if *serviceTag == "" {
+		fmt.Println("--service-tag must be set")
+		os.Exit(-1)
+	}
+
+	if *playbook == "" {
+		fmt.Println("--playbook must be set")
 		os.Exit(-1)
 	}
 
@@ -139,8 +157,7 @@ func main() {
 
 	fmt.Printf("Updating %s/%s:%s with ansible\n", *account, *repo, *tag)
 	cmd = exec.Command(
-		ansible,
-		"services",
+		ansiblePlaybook,
 		"-e",
 		fmt.Sprintf("@%s", *secretFile),
 		fmt.Sprintf("--vault-password-file=%s", *vaultPass),
@@ -149,8 +166,9 @@ func main() {
 		"--sudo",
 		"-u",
 		*user,
-		"-a",
-		fmt.Sprintf("docker pull %s/%s:%s", *account, *repo, *tag),
+		"--tags",
+		*pullTag,
+		*playbook,
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
@@ -173,7 +191,7 @@ func main() {
 		*user,
 		"--tags",
 		*configTag,
-		*configPlaybook,
+		*playbook,
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
@@ -183,7 +201,30 @@ func main() {
 		os.Exit(-1)
 	}
 
-	fmt.Printf("Restarting %s\n", *repo)
+	fmt.Printf("Updating service file for %s with ansible\n", *repo)
+	cmd = exec.Command(
+		ansiblePlaybook,
+		"-e",
+		fmt.Sprintf("@%s", *secretFile),
+		fmt.Sprintf("--vault-password-file=%s", *vaultPass),
+		"-i",
+		*inventory,
+		"--sudo",
+		"-u",
+		*user,
+		"--tags",
+		*serviceTag,
+		*playbook,
+	)
+	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
+	output, err = cmd.CombinedOutput()
+	fmt.Println(string(output[:]))
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		os.Exit(-1)
+	}
+
+	fmt.Printf("Restarting %s with ansible\n", *repo)
 	cmd = exec.Command(
 		ansible,
 		"services",
@@ -195,8 +236,9 @@ func main() {
 		"--sudo",
 		"-u",
 		*user,
-		"-a",
-		fmt.Sprintf("systemctl restart %s", *service),
+		"--tags",
+		*restartTag,
+		*playbook,
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
