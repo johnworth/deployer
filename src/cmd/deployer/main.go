@@ -226,8 +226,7 @@ func main() {
 
 	fmt.Printf("Restarting %s with ansible\n", *repo)
 	cmd = exec.Command(
-		ansible,
-		"services",
+		ansiblePlaybook,
 		"-e",
 		fmt.Sprintf("@%s", *secretFile),
 		fmt.Sprintf("--vault-password-file=%s", *vaultPass),
