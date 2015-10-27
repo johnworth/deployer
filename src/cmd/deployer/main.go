@@ -98,19 +98,19 @@ func main() {
 
 	git, err := exec.LookPath("git")
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
 	ansiblePlaybook, err := exec.LookPath("ansible-playbook")
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
 	if _, err := os.Stat("deployer-checkout"); err == nil {
 		if err = os.RemoveAll("deployer-checkout"); err != nil {
-			fmt.Printf("%s\n", err)
+			fmt.Print(err)
 			os.Exit(-1)
 		}
 	}
@@ -120,14 +120,14 @@ func main() {
 	output, err := cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
 	fmt.Println("cd'ing into deployer-checkout")
 	err = os.Chdir("deployer-checkout")
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -136,7 +136,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -145,7 +145,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -168,7 +168,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -191,7 +191,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -214,7 +214,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 
@@ -237,7 +237,7 @@ func main() {
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Print(err)
 		os.Exit(-1)
 	}
 }
