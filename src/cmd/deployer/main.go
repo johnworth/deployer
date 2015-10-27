@@ -269,7 +269,7 @@ func main() {
 			fmt.Print(err)
 			os.Exit(-1)
 		}
-		err = ioutil.WriteFile(destPath, contents, 0755)
+		err = ioutil.WriteFile(destPath, contents, 0644)
 		if err != nil {
 			fmt.Print(err)
 			os.Exit(-1)
@@ -304,11 +304,33 @@ func main() {
 			fmt.Print(err)
 			os.Exit(-1)
 		}
-		err = ioutil.WriteFile(destPath, contents, 0755)
+		err = ioutil.WriteFile(destPath, contents, 0644)
 		if err != nil {
 			fmt.Print(err)
 			os.Exit(-1)
 		}
+	}
+
+	origPath, err := filepath.Abs(path.Join(internalDir, "sudo_secret.txt"))
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
+	}
+	destPath, err := filepath.Abs(path.Join(externalDir, "sudo_secret.txt"))
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
+	}
+	fmt.Printf("Copying %s to %s\n", origPath, destPath)
+	contents, err := ioutil.ReadFile(origPath)
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
+	}
+	err = ioutil.WriteFile(destPath, contents, 0644)
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
 	}
 
 	fmt.Printf("cd'ing into %s\n", externalDir)
