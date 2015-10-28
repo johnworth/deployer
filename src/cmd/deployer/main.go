@@ -13,7 +13,7 @@ import (
 
 var (
 	externalRepo   = flag.String("git-repo-external", "", "The external git repository to clone")
-	externalBranch = flag.String("git-branch-external", "", "The git branch to check out in the external repo")
+	externalBranch = flag.String("git-branch-external", "dev", "The git branch to check out in the external repo")
 	gitRepo        = flag.String("git-repo-internal", "", "The internal git repository to clone")
 	gitBranch      = flag.String("git-branch-internal", "dev", "The git branch to check out in the internal repo")
 	account        = flag.String("account", "discoenv", "The Docker account to use")
