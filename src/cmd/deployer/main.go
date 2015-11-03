@@ -136,6 +136,13 @@ func main() {
 		}
 	}
 
+	if _, err := os.Stat("DE"); err == nil {
+		if err = os.RemoveAll("DE"); err != nil {
+			fmt.Print(err)
+			os.Exit(-1)
+		}
+	}
+
 	fmt.Printf("Cloning the internal repo %s \n", *gitRepo)
 	cmd := exec.Command(git, "clone", *gitRepo, internalDir)
 	output, err := cmd.CombinedOutput()
@@ -146,7 +153,7 @@ func main() {
 	}
 
 	fmt.Printf("Cloning the external repo %s\n", *externalRepo)
-	cmd = exec.Command(git, "clone", *externalRepo, externalDir)
+	cmd = exec.Command(git, "clone", *externalRepo, "DE")
 	output, err = cmd.CombinedOutput()
 	fmt.Println(string(output[:]))
 	if err != nil {
@@ -192,8 +199,8 @@ func main() {
 		os.Exit(-1)
 	}
 
-	fmt.Printf("cd'ing into %s\n", externalDir)
-	err = os.Chdir(externalDir)
+	fmt.Printf("cd'ing into %s\n", "DE")
+	err = os.Chdir("DE")
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(-1)
@@ -219,6 +226,13 @@ func main() {
 
 	fmt.Printf("cd'ing into %s\n", origDir)
 	err = os.Chdir(origDir)
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
+	}
+
+	fmt.Printf("Moving DE/ansible to %s", externalDir)
+	err = os.Rename("DE/ansible", externalDir)
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(-1)
