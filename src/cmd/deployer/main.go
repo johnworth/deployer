@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -12,23 +13,22 @@ import (
 )
 
 var (
-	externalRepo   = flag.String("git-repo-external", "", "The external git repository to clone")
-	externalBranch = flag.String("git-branch-external", "dev", "The git branch to check out in the external repo")
-	gitRepo        = flag.String("git-repo-internal", "", "The internal git repository to clone")
-	gitBranch      = flag.String("git-branch-internal", "dev", "The git branch to check out in the internal repo")
-	account        = flag.String("account", "discoenv", "The Docker account to use")
-	repo           = flag.String("repo", "", "The Docker repo to pull")
-	vaultPass      = flag.String("vault-pass", "", "The path to the ansible vault password file")
-	secretFile     = flag.String("secret", "", "The file encrypted by ansible-vault")
-	inventory      = flag.String("inventory", "", "The ansible inventory to use")
-	tag            = flag.String("tag", "dev", "The docker tag to pull from")
-	user           = flag.String("user", "", "The sudo user to use with the ansible command")
-	service        = flag.String("service", "", "The service to restart on the host")
-	configTag      = flag.String("config-tag", "", "The ansible tag to pass to the ansible-playbook command when updating the configs")
-	pullTag        = flag.String("pull-tag", "", "The ansible tag to pass to the ansible-playbook command when updating the images")
-	serviceTag     = flag.String("service-tag", "", "The ansible tag to pass to the ansible-playbook command when updating systemd service files")
-	restartTag     = flag.String("restart-tag", "", "The ansible tag to pass to the ansible-playbook command when restarting the containers")
-	playbook       = flag.String("playbook", "", "The ansible playbook to use")
+	externalRepo    = flag.String("git-repo-external", "", "The external git repository to clone")
+	externalBranch  = flag.String("git-branch-external", "dev", "The git branch to check out in the external repo")
+	gitRepo         = flag.String("git-repo-internal", "", "The internal git repository to clone")
+	gitBranch       = flag.String("git-branch-internal", "dev", "The git branch to check out in the internal repo")
+	account         = flag.String("account", "discoenv", "The Docker account to use")
+	repo            = flag.String("repo", "", "The Docker repo to pull")
+	vaultPass       = flag.String("vault-pass", "", "The path to the ansible vault password file")
+	secretFile      = flag.String("secret", "", "The file encrypted by ansible-vault")
+	inventory       = flag.String("inventory", "", "The ansible inventory to use")
+	tag             = flag.String("tag", "dev", "The docker tag to pull from")
+	user            = flag.String("user", "", "The sudo user to use with the ansible command")
+	service         = flag.String("service", "", "The service to restart on the host")
+	serviceVar      = flag.String("service-var", "", "The service var in the group vars")
+	serviceInvGroup = flag.String("service-inv-group", "", "The inventory group for the service")
+	playbook        = flag.String("playbook", "", "The ansible playbook to use")
+	ansibleSSHPort  = flag.String("ssh-port", "22", "The ssh port that ansible should use when restarting services")
 )
 
 const (
@@ -38,6 +38,34 @@ const (
 
 func init() {
 	flag.Parse()
+}
+
+// ExtraVars represents the options pass to the various ansible-playbook commands.
+type ExtraVars struct {
+	Config        bool     `json:"config"`
+	LoggingConfig bool     `json:"logging_config"`
+	DockerPull    bool     `json:"docker_pull"`
+	SystemdEnable bool     `json:"systemd_enable"`
+	Services      []string `json:"services"`
+}
+
+// NewExtraVars returns a new instance of ExtraVars
+func NewExtraVars(config, logging, pull, systemd bool, services []string) *ExtraVars {
+	return &ExtraVars{
+		Config:        config,
+		LoggingConfig: logging,
+		DockerPull:    pull,
+		SystemdEnable: systemd,
+		Services:      services,
+	}
+}
+
+func (e *ExtraVars) String() string {
+	marshaled, err := json.Marshal(e)
+	if err != nil {
+		return ""
+	}
+	return string(marshaled[:])
 }
 
 func main() {
@@ -85,23 +113,13 @@ func main() {
 		os.Exit(-1)
 	}
 
-	if *configTag == "" {
-		fmt.Println("--config-tag must be set")
+	if *serviceVar == "" {
+		fmt.Println("--service-var must be set")
 		os.Exit(-1)
 	}
 
-	if *pullTag == "" {
-		fmt.Println("--pull-tag must be set")
-		os.Exit(-1)
-	}
-
-	if *restartTag == "" {
-		fmt.Println("--restart-tag must be set")
-		os.Exit(-1)
-	}
-
-	if *serviceTag == "" {
-		fmt.Println("--service-tag must be set")
+	if *serviceInvGroup == "" {
+		fmt.Println("--service-inv-group must be set")
 		os.Exit(-1)
 	}
 
@@ -117,6 +135,12 @@ func main() {
 	}
 
 	ansiblePlaybook, err := exec.LookPath("ansible-playbook")
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(-1)
+	}
+
+	ansible, err := exec.LookPath("ansible")
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(-1)
@@ -354,6 +378,7 @@ func main() {
 		os.Exit(-1)
 	}
 
+	pullVars := NewExtraVars(false, false, true, false, []string{*serviceVar}).String()
 	fmt.Printf("Updating %s/%s:%s with ansible\n", *account, *repo, *tag)
 	cmd = exec.Command(
 		ansiblePlaybook,
@@ -365,8 +390,8 @@ func main() {
 		"--sudo",
 		"-u",
 		*user,
-		"--tags",
-		*pullTag,
+		"--extra-vars",
+		pullVars,
 		*playbook,
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
@@ -377,6 +402,7 @@ func main() {
 		os.Exit(-1)
 	}
 
+	configVars := NewExtraVars(true, true, false, true, []string{*serviceVar}).String()
 	fmt.Printf("Configuring %s with ansible\n", *repo)
 	cmd = exec.Command(
 		ansiblePlaybook,
@@ -388,55 +414,59 @@ func main() {
 		"--sudo",
 		"-u",
 		*user,
-		"--tags",
-		*configTag,
+		"--extra-vars",
+		configVars,
 		*playbook,
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
-	output, err = cmd.CombinedOutput()
-	fmt.Println(string(output[:]))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
 	if err != nil {
 		fmt.Print(err)
 		os.Exit(-1)
 	}
 
-	fmt.Printf("Updating service file for %s with ansible\n", *repo)
-	cmd = exec.Command(
-		ansiblePlaybook,
-		"-e",
-		fmt.Sprintf("@%s", *secretFile),
-		fmt.Sprintf("--vault-password-file=%s", *vaultPass),
-		"-i",
-		*inventory,
-		"--sudo",
-		"-u",
-		*user,
-		"--tags",
-		*serviceTag,
-		*playbook,
-	)
-	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
-	output, err = cmd.CombinedOutput()
-	fmt.Println(string(output[:]))
-	if err != nil {
-		fmt.Print(err)
-		os.Exit(-1)
-	}
+	// serviceVars := NewExtraVars
+	// fmt.Printf("Updating service file for %s with ansible\n", *repo)
+	// cmd = exec.Command(
+	// 	ansiblePlaybook,
+	// 	"-e",
+	// 	fmt.Sprintf("@%s", *secretFile),
+	// 	fmt.Sprintf("--vault-password-file=%s", *vaultPass),
+	// 	"-i",
+	// 	*inventory,
+	// 	"--sudo",
+	// 	"-u",
+	// 	*user,
+	// 	"--tags",
+	// 	*serviceTag,
+	// 	*playbook,
+	// )
+	// fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
+	// output, err = cmd.CombinedOutput()
+	// fmt.Println(string(output[:]))
+	// if err != nil {
+	// 	fmt.Print(err)
+	// 	os.Exit(-1)
+	// }
 
 	fmt.Printf("Restarting %s with ansible\n", *repo)
 	cmd = exec.Command(
-		ansiblePlaybook,
+		ansible,
+		*serviceInvGroup,
 		"-e",
 		fmt.Sprintf("@%s", *secretFile),
+		"-e",
+		fmt.Sprintf("ansible_ssh_port=%s", *ansibleSSHPort),
 		fmt.Sprintf("--vault-password-file=%s", *vaultPass),
 		"-i",
 		*inventory,
 		"--sudo",
 		"-u",
 		*user,
-		"--tags",
-		*restartTag,
-		*playbook,
+		"-m", "service",
+		"-a", fmt.Sprintf("name=%s state=restarted", *service),
 	)
 	fmt.Printf("%s %s\n", cmd.Path, strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
